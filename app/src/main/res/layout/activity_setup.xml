@@ -1,0 +1,252 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000"
+    android:paddingStart="48dp"
+    android:paddingEnd="48dp"
+    android:paddingTop="24dp"
+    android:paddingBottom="24dp">
+
+    <!-- Start button pinned to bottom right -->
+    <TextView
+        android:id="@+id/btnStartGame"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentBottom="true"
+        android:layout_alignParentEnd="true"
+        android:text="START →"
+        android:textColor="#FF8F00"
+        android:textSize="18sp"
+        android:letterSpacing="0.15"
+        android:fontFamily="sans-serif-medium"
+        android:clickable="true"
+        android:focusable="true"
+        android:padding="8dp"/>
+
+    <!-- Main content -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@id/btnStartGame"
+        android:layout_alignParentTop="true"
+        android:orientation="vertical">
+
+        <!-- Title row with ⓘ on the right -->
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="PING PONG SCOREBOARD"
+                android:textColor="#FFFFFF"
+                android:textSize="30sp"
+                android:letterSpacing="0.2"
+                android:fontFamily="sans-serif-thin"
+                android:layout_alignParentStart="true"
+                android:layout_centerVertical="true"/>
+
+            <TextView
+                android:id="@+id/btnInfo"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="ⓘ"
+                android:textColor="#FF8F00"
+                android:textSize="18sp"
+                android:alpha="0.7"
+                android:clickable="true"
+                android:focusable="true"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="12dp"
+                android:paddingBottom="4dp"
+                android:layout_alignParentEnd="true"
+                android:layout_centerVertical="true"/>
+
+        </RelativeLayout>
+
+        <!-- Amber line -->
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:background="#FF8F00"
+            android:layout_marginBottom="32dp"/>
+
+        <!-- 3 columns -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <!-- Players -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="PLAYERS"
+                    android:textColor="#FF8F00"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.15"
+                    android:layout_marginBottom="14dp"/>
+
+                <RadioGroup
+                    android:id="@+id/rgPlayers"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/rb2Players"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="2 Players"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:checked="true"
+                        android:textSize="15sp"
+                        android:layout_marginBottom="10dp"/>
+
+                    <RadioButton
+                        android:id="@+id/rb4Players"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="4 Players"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:textSize="15sp"/>
+
+                </RadioGroup>
+
+            </LinearLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#1A1A1A"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="32dp"/>
+
+            <!-- Win At -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="WIN AT"
+                    android:textColor="#FF8F00"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.15"
+                    android:layout_marginBottom="14dp"/>
+
+                <RadioGroup
+                    android:id="@+id/rgWinCondition"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/rb11"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="11 points"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:checked="true"
+                        android:textSize="15sp"
+                        android:layout_marginBottom="10dp"/>
+
+                    <RadioButton
+                        android:id="@+id/rb21"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="21 points"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:textSize="15sp"/>
+
+                </RadioGroup>
+
+            </LinearLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#1A1A1A"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="32dp"/>
+
+            <!-- Format -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FORMAT"
+                    android:textColor="#FF8F00"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.15"
+                    android:layout_marginBottom="14dp"/>
+
+                <RadioGroup
+                    android:id="@+id/rgBestOf"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/rbBo1"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Best of 1"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:checked="true"
+                        android:textSize="15sp"
+                        android:layout_marginBottom="10dp"/>
+
+                    <RadioButton
+                        android:id="@+id/rbBo3"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Best of 3"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:textSize="15sp"
+                        android:layout_marginBottom="10dp"/>
+
+                    <RadioButton
+                        android:id="@+id/rbBo5"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Best of 5"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:textSize="15sp"/>
+
+                </RadioGroup>
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</RelativeLayout>
