@@ -42,4 +42,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation("org.nanohttpd:nanohttpd:2.3.1")
     implementation("org.java-websocket:Java-WebSocket:1.5.4")
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.junit)
+    androidTestImplementation(libs.androidx.espresso.core)
 }
