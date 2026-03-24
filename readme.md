@@ -4,6 +4,10 @@ A sleek, modern ping pong scoreboard app for Android. Designed to be used flat o
 
 ---
 
+<img src="https://github.com/user-attachments/assets/be217178-a58d-4242-a959-26964840d87f" alt="Mobile_Scoreboard-1" width="100%" />
+
+---
+
 ## Features
 
 - **2 or 4 player support** — singles or doubles
@@ -17,12 +21,6 @@ A sleek, modern ping pong scoreboard app for Android. Designed to be used flat o
 - **Set & match winner overlays** — Displayed both in-app and on the TV scoreboard
 - **Remembers last settings** — Player names and match format are saved between sessions
 - **Pure AMOLED design** — Black background, amber accents, optimized for landscape
-
----
-
-## Screenshots
-
-> *(Add screenshots here)*
 
 ---
 
@@ -51,6 +49,22 @@ A sleek, modern ping pong scoreboard app for Android. Designed to be used flat o
 2. Open the browser on your TV
 3. Type the IP address shown in the **ⓘ Help** screen: `http://[phone-ip]:8080`
 4. The scoreboard updates instantly when points are scored
+
+---
+
+## Screenshots
+
+### Mobile
+<img src="https://github.com/user-attachments/assets/10f7d23a-a65f-44d1-ab41-e39602d5cdd9" alt="Mobile_Setup" width="100%" />
+<img src="https://github.com/user-attachments/assets/a7455b5a-2fdb-49ec-beee-20c024987583" alt="Mobile_New_Set_Serve" width="100%" />
+<img src="https://github.com/user-attachments/assets/2bb2f720-4f16-458a-88c9-94667893001a" alt="Mobile_Scoreboard-2" width="100%" />
+<img src="https://github.com/user-attachments/assets/cf079dbb-e5e3-4ba7-b99e-17a3b27548d3" alt="Mobile_Information_2" width="100%" />
+
+### Live Stream (local wifi)
+<img src="https://github.com/user-attachments/assets/61f6f319-1ec7-4a44-85ce-68432b9862b7" alt="WebPage_0" width="100%" />
+<img src="https://github.com/user-attachments/assets/7389f0ce-e5e2-461b-8d63-6006a3c3aeab" alt="WebPage_1" width="100%" />
+<img src="https://github.com/user-attachments/assets/04edb851-e641-41e6-9a7d-73faf0c7177d" alt="WebPage_2" width="100%" />
+
 
 ---
 
