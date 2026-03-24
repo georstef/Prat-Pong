@@ -14,7 +14,7 @@ A sleek, modern ping pong scoreboard app for Android. Designed to be used flat o
 - **Configurable match format** — Best of 1, 3, or 5 sets
 - **Win condition** — First to 11 or 21 points (with 2-point lead rule)
 - **Serve tracking** — Green dots show who serves, switching automatically every 2 points (every 1 at deuce)
-- **Swap sides** — Swap players, scores, sets and serve in one tap
+- **Swap sides** — Swap players, scores, sets, and serve in one tap
 - **Editable player names** — Tap a name to edit it during the game
 - **TV Scoreboard** — Stream the live score to any browser on your TV via Wi-Fi (WebSocket, instant updates)
 - **Splash screen on TV** — Shows "Game Starting Soon" while on the setup page
@@ -29,19 +29,18 @@ A sleek, modern ping pong scoreboard app for Android. Designed to be used flat o
 ### Setup Screen
 1. Select number of players (2 or 4)
 2. Select win condition (11 or 21 points)
-3. Select match format (Best of 1, 3 or 5)
+3. Select match format (Best of 1, 3, or 5)
 4. Tap **START →**
 
 ### Game Screen
 - **Tap the score number** to add a point
 - **Tap −1** to remove a point
 - **Tap a player name** to edit it
-- **Tap ⇄** to swap sides (scores, sets and serve switch too)
-- **Tap the green dots** to manually set who serves
-- At the start of each set a popup asks who serves first
-- Tap **NEW SET** to start a new set (confirmation required if scores are not 0)
-- Tap **RESTART** to reset the full match
-- Tap **SETUP** to go back to the setup screen
+- **Tap ⇄** to swap sides (scores, sets, and serve switch too)
+- At the start of each set, a pop-up asks who serves first
+- Tap **NEW SET** to start a new set (confirmation required if score is not 0-0)
+- Tap **RESTART** to reset the full match (confirmation required always)
+- Tap **SETUP** to go back to the setup screen (confirmation required if score is not 0-0)
 - Tap **ⓘ** for help and TV scoreboard instructions
 
 ### TV Scoreboard
