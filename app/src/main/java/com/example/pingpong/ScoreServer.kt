@@ -166,9 +166,16 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
             line-height: 1;
         }
         .center-info {
-            width: 200px;
-            text-align: center;
-        }
+    width: 200px;
+    text-align: center;
+    white-space: nowrap;    /* add this */
+}
+.sets {
+    font-size: 3vw;
+    font-weight: 300;
+    margin-bottom: 8px;
+    white-space: nowrap;    /* add this too, for safety */
+}
         .sets {
             font-size: 3vw;
             font-weight: 300;
