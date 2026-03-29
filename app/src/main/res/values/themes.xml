@@ -13,12 +13,17 @@
         <item name="colorAccent">#FF8F00</item>
     </style>
 
+    <style name="DarkDialogTitleText" parent="MaterialAlertDialog.MaterialComponents.Title.Text">
+        <item name="android:textColor">#FF8F00</item>
+    </style>
+
     <style name="DarkDialog" parent="Theme.MaterialComponents.Dialog.Alert">
         <item name="colorPrimary">#FF8F00</item>
         <item name="colorAccent">#FF8F00</item>
         <item name="android:windowBackground">#1A1A1A</item>
         <item name="android:textColorPrimary">#FFFFFF</item>
         <item name="android:textColorSecondary">#AAAAAA</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/DarkDialogTitleText</item>
         <item name="buttonBarPositiveButtonStyle">@style/DarkDialogButton</item>
         <item name="buttonBarNegativeButtonStyle">@style/DarkDialogButton</item>
     </style>

@@ -1,7 +1,9 @@
 package com.example.pingpong
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
 import android.text.InputType
@@ -10,11 +12,14 @@ import android.text.Spanned
 import android.text.style.ForegroundColorSpan
 import android.text.style.RelativeSizeSpan
 import android.view.Gravity
+import android.view.WindowManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.example.pingpong.databinding.ActivityGameBinding
 
 class GameActivity : AppCompatActivity() {
@@ -41,10 +46,18 @@ class GameActivity : AppCompatActivity() {
 
     private val server get() = SetupActivity.scoreServer
 
+    // Voice
+    private var voiceCommandManager: VoiceCommandManager? = null
+    private var voiceEnabled = false
+    private val MIC_PERMISSION_REQUEST = 101
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityGameBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        // Keep screen on while game is active
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
         isFourPlayers = intent.getBooleanExtra("fourPlayers", false)
         winScore = intent.getIntExtra("winScore", 11)
@@ -59,10 +72,13 @@ class GameActivity : AppCompatActivity() {
             team2Name = prefs.getString("player2Name", "PLAYER 2") ?: "PLAYER 2"
         }
 
+        voiceEnabled = prefs.getBoolean(VoiceSettingsActivity.KEY_VOICE_ENABLED, false)
+
         server?.gameStarted = true
 
         updateDisplay()
         updateServeDots()
+        requestMicPermissionAndSetupVoice()
         askWhoServes()
 
         binding.tvScore1.setOnClickListener {
@@ -156,6 +172,128 @@ class GameActivity : AppCompatActivity() {
         binding.btnInfo.setOnClickListener { showInfoDialog() }
     }
 
+    // ───────────────────────── VOICE ─────────────────────────
+
+    private fun requestMicPermissionAndSetupVoice() {
+        if (!voiceEnabled) {
+            binding.tvMicIndicator.visibility = android.view.View.GONE
+            return
+        }
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED) {
+            setupVoiceCommands()
+        } else {
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(Manifest.permission.RECORD_AUDIO),
+                MIC_PERMISSION_REQUEST
+            )
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == MIC_PERMISSION_REQUEST) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                setupVoiceCommands()
+            } else {
+                // Permission denied — hide mic icon and disable voice silently
+                binding.tvMicIndicator.visibility = android.view.View.GONE
+            }
+        }
+    }
+
+    private fun setupVoiceCommands() {
+        if (!voiceEnabled) {
+            binding.tvMicIndicator.visibility = android.view.View.GONE
+            return
+        }
+
+        binding.tvMicIndicator.visibility = android.view.View.VISIBLE
+        setMicIdle()
+
+        voiceCommandManager = VoiceCommandManager(
+            context = this,
+            onPointLeft = {
+                runOnUiThread {
+                    if (!setInProgress) return@runOnUiThread
+                    history.addLast("1")
+                    score1++
+                    updateDisplay()
+                    updateServe()
+                    flashMicRecognized()
+                    checkSetWin()
+                }
+            },
+            onPointRight = {
+                runOnUiThread {
+                    if (!setInProgress) return@runOnUiThread
+                    history.addLast("2")
+                    score2++
+                    updateDisplay()
+                    updateServe()
+                    flashMicRecognized()
+                    checkSetWin()
+                }
+            },
+            onMinusLeft = {
+                runOnUiThread {
+                    if (score1 > 0) {
+                        score1--
+                        updateDisplay()
+                        recalculateServeFromTotal()
+                        flashMicRecognized()
+                    }
+                }
+            },
+            onMinusRight = {
+                runOnUiThread {
+                    if (score2 > 0) {
+                        score2--
+                        updateDisplay()
+                        recalculateServeFromTotal()
+                        flashMicRecognized()
+                    }
+                }
+            }
+        )
+        voiceCommandManager?.updatePlayerNames(team1Name, team2Name)
+        voiceCommandManager?.start()
+    }
+
+    private fun setMicIdle() {
+        binding.tvMicIndicator.setTextColor(Color.parseColor("#FF8F00"))
+        binding.tvMicIndicator.alpha = 0.4f
+    }
+
+    private fun flashMicRecognized() {
+        binding.tvMicIndicator.alpha = 1.0f
+        binding.tvMicIndicator.setTextColor(Color.parseColor("#FF8F00"))
+        binding.tvMicIndicator.postDelayed({ setMicIdle() }, 600)
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        voiceCommandManager?.stop()
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        voiceCommandManager?.stop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        if (voiceEnabled) voiceCommandManager?.start()
+    }
+
+    // ─────────────────────── EXISTING LOGIC ───────────────────────
+
     private fun getLocalIpAddress(): String {
         try {
             val interfaces = java.net.NetworkInterface.getNetworkInterfaces()
@@ -195,21 +333,31 @@ class GameActivity : AppCompatActivity() {
         addSection("NAMES", "Tap a player name to edit it.")
         addSection("SCORING", "Tap the score number to add a point.\nTap −1 to remove a point.")
         addSection("SWAP", "Tap ⇄ to swap sides.")
-        addSection("SERVE",
-            "At the start of each set, a popup asks who serves first.\nThe green dots indicate the current server — starting with 2 dots.\nThe dots switch automatically every 2 points (every 1 point at deuce).")
+        addSection(
+            "SERVE",
+            "At the start of each set, a popup asks who serves first.\nThe green dots indicate the current server — starting with 2 dots.\nThe dots switch automatically every 2 points (every 1 point at deuce)."
+        )
 
-        // TV title
+        if (voiceEnabled) {
+            addSection(
+                "VOICE COMMANDS",
+                "\"Point left\" / \"Point right\" — add a point\n" +
+                        "\"Minus left\" / \"Remove left\" — remove a point from left\n" +
+                        "\"Minus right\" / \"Remove right\" — remove a point from right\n" +
+                        "You can also use player names instead of left/right.\n" +
+                        "The app will repeat the command back if recognized."
+            )
+        }
+
         val tvTitleStart = sb.length
         sb.append("TV SCOREBOARD").append("\n")
         sb.setSpan(ForegroundColorSpan(amber), tvTitleStart, sb.length - 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         sb.setSpan(RelativeSizeSpan(1.1f), tvTitleStart, sb.length - 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 
-        // TV body
         val tvBodyStart = sb.length
         sb.append("Make sure your phone and TV are on the same Wi-Fi.\nOpen the browser on your TV and type: ")
         sb.setSpan(ForegroundColorSpan(gray), tvBodyStart, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 
-        // IP inline
         val ipStart = sb.length
         sb.append("http://$ip:8080")
         sb.setSpan(ForegroundColorSpan(amber), ipStart, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -444,6 +592,10 @@ class GameActivity : AppCompatActivity() {
         }
         if (servingPlayer == 1) servingPlayer = 2
         else if (servingPlayer == 2) servingPlayer = 1
+
+        // Update voice manager with new left/right player names after swap
+        voiceCommandManager?.updatePlayerNames(team1Name, team2Name)
+
         updateDisplay()
         updateServeDots()
     }
@@ -472,6 +624,8 @@ class GameActivity : AppCompatActivity() {
                     if (player == 1) team1Name = name else team2Name = name
                     updateDisplay()
                     saveNames()
+                    // Update voice manager with new name
+                    voiceCommandManager?.updatePlayerNames(team1Name, team2Name)
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -539,7 +693,6 @@ class GameActivity : AppCompatActivity() {
                     .setCancelable(false)
                     .show()
                 d.window?.setLayout(800, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
-
             }
         }
     }
@@ -564,7 +717,6 @@ class GameActivity : AppCompatActivity() {
             .setCancelable(false)
             .show()
         d.window?.setLayout(800, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
-
     }
 
     private fun resetSet() {

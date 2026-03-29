@@ -237,6 +237,22 @@
 
     </LinearLayout>
 
+    <!-- Mic status indicator — floats above bottom bar, does not affect layout -->
+    <TextView
+        android:id="@+id/tvMicIndicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🎙️"
+        android:textSize="18sp"
+        android:gravity="center"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="4dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toTopOf="@id/bottomBar"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"/>
+
     <!-- BOTTOM BAR -->
     <LinearLayout
         android:id="@+id/bottomBar"
@@ -327,9 +343,7 @@
 
         </LinearLayout>
 
-        <!-- Row 2: −1 · ⓘ · −1
-             paddingStart/End matches all other rows (24dp)
-             center column matches all other rows (200dp) -->
+        <!-- Row 2: −1 · ⓘ · −1 -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

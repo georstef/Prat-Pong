@@ -41,6 +41,7 @@ class SetupActivity : AppCompatActivity() {
         scoreServer?.pushUpdate()
 
         loadLastSettings()
+        updateVoiceSettingsRowState()
 
         binding.btnStartGame.setOnClickListener {
             saveSettings()
@@ -50,6 +51,27 @@ class SetupActivity : AppCompatActivity() {
         binding.btnInfo.setOnClickListener {
             showInfoDialog()
         }
+
+        // Voice enable/disable radio buttons
+        binding.rgVoice.setOnCheckedChangeListener { _, _ ->
+            saveSettings()
+            updateVoiceSettingsRowState()
+        }
+
+        // Voice Settings row tap
+        binding.rowVoiceSettings.setOnClickListener {
+            val enabled = binding.rbVoiceEnabled.isChecked
+            if (enabled) {
+                startActivity(Intent(this, VoiceSettingsActivity::class.java))
+            }
+        }
+    }
+
+    private fun updateVoiceSettingsRowState() {
+        val enabled = binding.rbVoiceEnabled.isChecked
+        binding.rowVoiceSettings.alpha = if (enabled) 1.0f else 0.35f
+        binding.rowVoiceSettings.isClickable = enabled
+        binding.rowVoiceSettings.isFocusable = enabled
     }
 
     private fun getLocalIpAddress(): String {
@@ -91,21 +113,20 @@ class SetupActivity : AppCompatActivity() {
         addSection("NAMES", "Tap a player name to edit it.")
         addSection("SCORING", "Tap the score number to add a point.\nTap −1 to remove a point.")
         addSection("SWAP", "Tap ⇄ to swap sides.")
-        addSection("SERVE",
-            "At the start of each set, a popup asks who serves first.\nThe green dots indicate the current server — starting with 2 dots.\nThe dots switch automatically every 2 points (every 1 point at deuce).")
+        addSection(
+            "SERVE",
+            "At the start of each set, a popup asks who serves first.\nThe green dots indicate the current server — starting with 2 dots.\nThe dots switch automatically every 2 points (every 1 point at deuce)."
+        )
 
-        // TV title
         val tvTitleStart = sb.length
         sb.append("TV SCOREBOARD").append("\n")
         sb.setSpan(ForegroundColorSpan(amber), tvTitleStart, sb.length - 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
         sb.setSpan(RelativeSizeSpan(1.1f), tvTitleStart, sb.length - 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 
-        // TV body
         val tvBodyStart = sb.length
         sb.append("Make sure your phone and TV are on the same Wi-Fi.\nOpen the browser on your TV and type: ")
         sb.setSpan(ForegroundColorSpan(gray), tvBodyStart, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 
-        // IP inline
         val ipStart = sb.length
         sb.append("http://$ip:8080")
         sb.setSpan(ForegroundColorSpan(amber), ipStart, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
@@ -135,6 +156,7 @@ class SetupActivity : AppCompatActivity() {
         val fourPlayers = prefs.getBoolean("fourPlayers", false)
         val winScore = prefs.getInt("winScore", 11)
         val bestOf = prefs.getInt("bestOf", 1)
+        val voiceEnabled = prefs.getBoolean(VoiceSettingsActivity.KEY_VOICE_ENABLED, false)
 
         if (fourPlayers) binding.rb4Players.isChecked = true
         else binding.rb2Players.isChecked = true
@@ -147,6 +169,9 @@ class SetupActivity : AppCompatActivity() {
             5 -> binding.rbBo5.isChecked = true
             else -> binding.rbBo1.isChecked = true
         }
+
+        if (voiceEnabled) binding.rbVoiceEnabled.isChecked = true
+        else binding.rbVoiceDisabled.isChecked = true
     }
 
     private fun saveSettings() {
@@ -159,6 +184,7 @@ class SetupActivity : AppCompatActivity() {
                 R.id.rbBo5 -> 5
                 else -> 1
             })
+            .putBoolean(VoiceSettingsActivity.KEY_VOICE_ENABLED, binding.rbVoiceEnabled.isChecked)
             .apply()
     }
 

@@ -75,7 +75,7 @@
             android:background="#FF8F00"
             android:layout_marginBottom="32dp"/>
 
-        <!-- 3 columns -->
+        <!-- 4 columns: Players | Win At | Format | Voice -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -242,6 +242,88 @@
                         android:textSize="15sp"/>
 
                 </RadioGroup>
+
+            </LinearLayout>
+
+            <!-- Divider -->
+            <View
+                android:layout_width="1dp"
+                android:layout_height="match_parent"
+                android:background="#1A1A1A"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="32dp"/>
+
+            <!-- Voice Commands -->
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="VOICE"
+                    android:textColor="#FF8F00"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.15"
+                    android:layout_marginBottom="14dp"/>
+
+                <RadioGroup
+                    android:id="@+id/rgVoice"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical">
+
+                    <RadioButton
+                        android:id="@+id/rbVoiceDisabled"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Disabled"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:checked="true"
+                        android:textSize="15sp"
+                        android:layout_marginBottom="10dp"/>
+
+                    <RadioButton
+                        android:id="@+id/rbVoiceEnabled"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Enabled"
+                        android:textColor="#FFFFFF"
+                        android:buttonTint="#FF8F00"
+                        android:textSize="15sp"/>
+
+                </RadioGroup>
+
+                <!-- Voice Settings row -->
+                <LinearLayout
+                    android:id="@+id/rowVoiceSettings"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical"
+                    android:layout_marginTop="18dp"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:alpha="0.35">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="🎙️"
+                        android:textSize="13sp"/>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text=" Voice Settings (Beta) →"
+                        android:textColor="#FF8F00"
+                        android:textSize="12sp"
+                        android:letterSpacing="0.05"/>
+
+                </LinearLayout>
 
             </LinearLayout>
 
