@@ -342,9 +342,9 @@ class GameActivity : AppCompatActivity() {
             addSection(
                 "VOICE COMMANDS",
                 "\"Point left\" / \"Point right\" — add a point\n" +
-                        "\"Minus left\" / \"Remove left\" — remove a point from left\n" +
-                        "\"Minus right\" / \"Remove right\" — remove a point from right\n" +
-                        "You can also use player names instead of left/right.\n" +
+                        "\"Minus left\" / \"Minus right\" / \"Minus [name]\" — remove a point\n" +
+                        "\"Remove left\" / \"Remove right\" / \"Remove [name]\" — remove a point\n" +
+                        "\"Undo left\" / \"Undo right\" / \"Undo [name]\" — remove a point\n" +
                         "The app will repeat the command back if recognized."
             )
         }

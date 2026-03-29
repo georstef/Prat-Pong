@@ -10,26 +10,15 @@ import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
-import com.google.mlkit.nl.languageid.LanguageIdentification
-import com.google.mlkit.nl.translate.TranslateLanguage
-import com.google.mlkit.nl.translate.Translation
-import com.google.mlkit.nl.translate.TranslatorOptions
 
 /**
  * Manages always-on voice command recognition and TTS confirmation.
  *
- * Language handling:
- *   1. Speech recognizer returns text in whatever language was spoken.
- *   2. ML Kit language identification checks if the text is English.
- *   3. If English → parse directly (no ML Kit translator needed).
- *   4. If not English → translate to English via ML Kit (on-device, offline
- *      after model download), then parse.
- *
- * Commands (in any language):
+ * English only. Commands:
  *   "point left"  / "point right"  / "point [name]"  → add point
  *   "minus left"  / "minus right"  / "minus [name]"  → remove point
  *   "remove left" / "remove right" / "remove [name]" → remove point
- *   "undo left" / "undo right" / "undo [name]" → undo point
+ *   "undo left"   / "undo right"   / "undo [name]"   → undo point
  */
 class VoiceCommandManager(
     private val context: Context,
@@ -49,12 +38,7 @@ class VoiceCommandManager(
     var leftPlayerName: String = ""
     var rightPlayerName: String = ""
 
-    private val enabledLanguages: List<String> by lazy {
-        VoiceSettingsActivity.getEnabledLanguages(context)
-    }
-
-    // Cache translators so we don't recreate them on every command
-    private val translatorCache = mutableMapOf<String, com.google.mlkit.nl.translate.Translator>()
+    // ─────────────────────── LIFECYCLE ───────────────────────
 
     fun start() {
         if (isActive) return
@@ -74,8 +58,6 @@ class VoiceCommandManager(
         tts?.shutdown()
         tts = null
         ttsReady = false
-        translatorCache.values.forEach { it.close() }
-        translatorCache.clear()
     }
 
     fun updatePlayerNames(leftName: String, rightName: String) {
@@ -115,9 +97,7 @@ class VoiceCommandManager(
     }
 
     private fun speak(text: String) {
-        if (ttsReady) {
-            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "cmd_confirmation")
-        }
+        if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "cmd_confirmation")
     }
 
     // ─────────────────────── RECOGNIZER ───────────────────────
@@ -129,17 +109,15 @@ class VoiceCommandManager(
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
-                    //mycode
-                    val recognizedText = matches[0]
-                    android.util.Log.d("VoiceDebug", "RAW RECOGNIZED: $recognizedText")
-
-                    processRecognizedText(matches[0])
+                    android.util.Log.d("VoiceDebug", "RAW RECOGNIZED: ${matches[0]}")
+                    handleResult(matches[0])
                 } else {
                     if (isActive && !isSpeaking) beginListening()
                 }
             }
 
             override fun onError(error: Int) {
+                android.util.Log.w("VoiceDebug", "Recognition error code: $error")
                 if (isActive && !isSpeaking) beginListening()
             }
 
@@ -155,17 +133,9 @@ class VoiceCommandManager(
 
     private fun beginListening() {
         if (!isActive || isSpeaking) return
-        val primaryLang = if (enabledLanguages.isNotEmpty()) enabledLanguages[0] else "en"
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, primaryLang)
-            if (enabledLanguages.size > 1) {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, primaryLang)
-                putExtra(
-                    "android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES",
-                    enabledLanguages.drop(1).toTypedArray()
-                )
-            }
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
         }
@@ -176,151 +146,10 @@ class VoiceCommandManager(
         }
     }
 
-    // ─────────────────────── LANGUAGE DETECTION + TRANSLATION ───────────────────────
-
-    /**
-     * Entry point after speech recognition.
-     * Identifies the language, skips translation if already English,
-     * otherwise translates then parses.
-     */
-    private fun processRecognizedText(text: String) {
-        val langId = LanguageIdentification.getClient()
-        langId.identifyLanguage(text)
-            .addOnSuccessListener { langCode ->
-                //mycode
-                android.util.Log.d("VoiceDebug", "LANG DETECTED: $langCode | TEXT: $text")
-
-                langId.close()
-
-                //mycode
-                when {
-                    langCode == "en" -> {
-                        android.util.Log.d("VoiceDebug", "SKIP TRANSLATION (ENGLISH)")
-
-                        mainHandler.post { handleResult(text) }
-                    }
-                    langCode == "und" -> {
-                        // Unknown language → try all enabled languages sequentially
-                        android.util.Log.d("VoiceDebug", "UNDETECTED - TRY ALL ENABLED LANGUAGES")
-                        tryAllEnabledLanguages(text)
-                    }
-                    else -> {
-                        android.util.Log.d("VoiceDebug", "WILL TRANSLATE FROM: $langCode")
-
-                        translateToEnglish(text, langCode) { translated ->
-                            mainHandler.post { handleResult(translated) }
-                        }
-                    }
-                }
-                /*
-                //mycode
-                //if (langCode == "en" || langCode == "und") {
-                if (langCode == "en") {
-                    //mycode
-                    android.util.Log.d("VoiceDebug", "SKIP TRANSLATION (ENGLISH)")
-
-                    // English or undetected — parse directly
-                    mainHandler.post { handleResult(text) }
-                } else {
-                    //mycode
-                    android.util.Log.d("VoiceDebug", "WILL TRANSLATE FROM: $langCode")
-                    translateToEnglish(text, langCode) { translated ->
-                        //mycode
-                        android.util.Log.d("VoiceDebug", "FINAL TEXT AFTER TRANSLATION: $translated")
-
-                        mainHandler.post { handleResult(translated) }
-                    }
-                }
-                */
-            }
-            .addOnFailureListener { e ->
-                //mycode
-                android.util.Log.e("VoiceDebug", "LANG DETECTION FAILED", e)
-
-                langId.close()
-                // fallback: try all enabled languages
-                tryAllEnabledLanguages(text)
-                // If detection fails, try parsing as-is
-                //mainHandler.post { handleResult(text) }
-            }
-    }
-
-    // ───── Fallback for undetected languages ─────
-    private fun tryAllEnabledLanguages(text: String) {
-        val langsToTry = enabledLanguages.filter { it != "en" }
-        if (langsToTry.isEmpty()) {
-            // No enabled non-English languages → fallback
-            mainHandler.post { handleResult(text) }
-            return
-        }
-
-        tryTranslateSequential(text, langsToTry, 0)
-    }
-
-    private fun tryTranslateSequential(text: String, langs: List<String>, index: Int) {
-        if (index >= langs.size) {
-            // None worked → fallback
-            mainHandler.post { handleResult(text) }
-            return
-        }
-
-        val lang = langs[index]
-        translateToEnglish(text, lang) { translated ->
-            // Heuristic: if translation changed text, assume this is the correct language
-            if (!translated.equals(text, ignoreCase = true)) {
-                mainHandler.post { handleResult(translated) }
-            } else {
-                // Try next language in the list
-                tryTranslateSequential(text, langs, index + 1)
-            }
-        }
-    }
-
-    /**
-     * Translates [text] from [sourceLangCode] to English using the on-device
-     * ML Kit translator. The model must already be downloaded (guaranteed if
-     * the user enabled the language in Voice Settings).
-     * Calls [onDone] with the translated text, or original text on failure.
-     */
-    private fun translateToEnglish(text: String, sourceLangCode: String, onDone: (String) -> Unit) {
-        val mlKitCode = TranslateLanguage.fromLanguageTag(sourceLangCode)
-        //mycode
-        android.util.Log.d("VoiceDebug", "MLKIT CODE: $mlKitCode (from $sourceLangCode)")
-
-        if (mlKitCode == null) {
-            onDone(text)
-            return
-        }
-
-        val translator = translatorCache.getOrPut(sourceLangCode) {
-            val options = TranslatorOptions.Builder()
-                .setSourceLanguage(mlKitCode)
-                .setTargetLanguage(TranslateLanguage.ENGLISH)
-                .build()
-            Translation.getClient(options)
-        }
-        //mycode
-        android.util.Log.d("VoiceDebug", "TRANSLATING INPUT: $text")
-        translator.translate(text)
-            .addOnSuccessListener { translated ->
-                //mycode
-                android.util.Log.d("VoiceDebug", "TRANSLATION SUCCESS: $translated")
-                onDone(translated.lowercase().trim()) }
-            .addOnFailureListener { e ->
-                //mycode
-                android.util.Log.e("VoiceDebug", "TRANSLATION FAILED", e)
-                onDone(text) } // fall back to original on error
-    }
-
     // ─────────────────────── COMMAND PARSING ───────────────────────
 
-    /**
-     * Parses an English command string. Always receives English —
-     * either directly from the recognizer or after ML Kit translation.
-     */
     private fun handleResult(text: String) {
-        //mycode
-        android.util.Log.d("VoiceDebug", "HANDLE RESULT INPUT: $text")
+        android.util.Log.d("VoiceDebug", "HANDLE RESULT: $text")
         val input = text.lowercase().trim()
         val words = input.split("\\s+".toRegex())
 
@@ -328,8 +157,9 @@ class VoiceCommandManager(
             if (isActive && !isSpeaking) beginListening()
             return
         }
+
         val isAdd    = actionWord == "point"
-        val isRemove = actionWord == "minus" || actionWord == "remove" || actionWord == "undo"
+        val isRemove = actionWord in setOf("minus", "remove", "undo")
 
         if (!isAdd && !isRemove) {
             if (isActive && !isSpeaking) beginListening()
@@ -356,7 +186,6 @@ class VoiceCommandManager(
                 if (isAdd) onPointRight() else onMinusRight()
             }
             else -> {
-                // Action word matched but no valid direction/name — resume listening
                 if (isActive && !isSpeaking) beginListening()
             }
         }

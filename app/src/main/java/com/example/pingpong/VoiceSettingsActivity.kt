@@ -3,13 +3,10 @@ package com.example.pingpong
 import android.content.Context
 import android.graphics.Color
 import android.os.Bundle
-import android.view.Gravity
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import android.widget.*
-import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
@@ -22,10 +19,10 @@ class VoiceSettingsActivity : AppCompatActivity() {
         const val KEY_VOICE_ENABLED = "voice_enabled"
         const val KEY_VOICE_LANGUAGES = "voice_languages"
 
-        // Only English is locked on
+        // English is always the only enabled language.
         fun getLockedLanguages(): Set<String> = setOf("en")
 
-        // Get keyboard-detected languages (excluding English, which is always present)
+        // Kept for future use if multi-language support is re-introduced.
         fun getKeyboardLanguages(context: Context): Set<String> {
             val langs = mutableSetOf<String>()
             try {
@@ -46,31 +43,13 @@ class VoiceSettingsActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            langs.remove("en") // English is handled separately as locked
+            langs.remove("en")
             return langs
         }
 
-        // Load saved language selection
-        // English is always true; others default to false unless saved as true
+        // Always returns English only.
         fun loadLanguageSelection(context: Context): Map<String, Boolean> {
-            val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            val keyboardLangs = getKeyboardLanguages(context)
-            val savedJson = prefs.getString(KEY_VOICE_LANGUAGES, null)
-
-            val savedMap = mutableMapOf<String, Boolean>()
-            if (savedJson != null) {
-                savedJson.split(",").forEach { entry ->
-                    val parts = entry.split(":")
-                    if (parts.size == 2) savedMap[parts[0]] = parts[1] == "true"
-                }
-            }
-
-            val result = mutableMapOf<String, Boolean>()
-            result["en"] = true // English always on
-            for (lang in keyboardLangs) {
-                result[lang] = savedMap[lang] == true // default false unless explicitly saved true
-            }
-            return result
+            return mapOf("en" to true)
         }
 
         fun saveLanguageSelection(context: Context, selection: Map<String, Boolean>) {
@@ -79,10 +58,8 @@ class VoiceSettingsActivity : AppCompatActivity() {
             prefs.edit().putString(KEY_VOICE_LANGUAGES, encoded).apply()
         }
 
-        // Returns enabled language codes for the speech recognizer
-        fun getEnabledLanguages(context: Context): List<String> {
-            return loadLanguageSelection(context).filter { it.value }.keys.toList()
-        }
+        // Always returns just English.
+        fun getEnabledLanguages(context: Context): List<String> = listOf("en")
 
         fun getLanguageDisplayName(code: String): String {
             return try {
@@ -92,7 +69,7 @@ class VoiceSettingsActivity : AppCompatActivity() {
             }
         }
 
-        // Check whether ML Kit already has the model for a given language downloaded
+        // Kept for future use.
         fun isModelDownloaded(langCode: String, onResult: (Boolean) -> Unit) {
             val mlKitCode = TranslateLanguage.fromLanguageTag(langCode) ?: run {
                 onResult(false)
@@ -103,7 +80,6 @@ class VoiceSettingsActivity : AppCompatActivity() {
                 .setTargetLanguage(TranslateLanguage.ENGLISH)
                 .build()
             val translator = Translation.getClient(options)
-            // Attempt a translation with no download — if models are missing it will fail
             translator.translate("test")
                 .addOnSuccessListener { onResult(true) }
                 .addOnFailureListener { onResult(false) }
@@ -115,14 +91,8 @@ class VoiceSettingsActivity : AppCompatActivity() {
     private val gray = Color.parseColor("#AAAAAA")
     private val dimGray = Color.parseColor("#444444")
 
-    private lateinit var languageSelection: MutableMap<String, Boolean>
-    private val checkBoxes = mutableMapOf<String, CheckBox>()
-    private val statusLabels = mutableMapOf<String, TextView>()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        languageSelection = loadLanguageSelection(this).toMutableMap()
 
         val scroll = ScrollView(this).apply { setBackgroundColor(Color.BLACK) }
         val container = LinearLayout(this).apply {
@@ -132,7 +102,7 @@ class VoiceSettingsActivity : AppCompatActivity() {
 
         // Title
         container.addView(TextView(this).apply {
-            text = "VOICE SETTINGS"
+            text = "VOICE INSTRUCTIONS"
             textSize = 22f
             setTextColor(Color.WHITE)
             letterSpacing = 0.2f
@@ -150,32 +120,22 @@ class VoiceSettingsActivity : AppCompatActivity() {
         })
 
         // --- LANGUAGES SECTION ---
-        container.addView(makeSectionTitle("LANGUAGES"))
-        container.addView(makeSectionBody(
-            "English is always enabled. Enable additional languages to use voice commands in them. " +
-                    "A one-time model download (~15 MB) may be required per language."
-        ))
-
-        // English row — locked
-        container.addView(makeLanguageRow("en", locked = true))
-
-        // Other keyboard languages — unchecked by default
-        val otherLangs = getKeyboardLanguages(this)
-            .sortedBy { getLanguageDisplayName(it) }
-
-        for (lang in otherLangs) {
-            container.addView(makeLanguageRow(lang, locked = false))
-        }
-
+        // English row is shown locked, purely for reference.
+        container.addView(makeSectionTitle("LANGUAGE"))
+        container.addView(makeSectionBody("Voice commands are in English."))
+        container.addView(makeEnglishRow())
         container.addView(makeDivider())
 
         // --- VOICE COMMANDS SECTION ---
         container.addView(makeSectionTitle("VOICE COMMANDS"))
         container.addView(makeSectionBody(
-            "Speak commands in any enabled language — the app translates them automatically.\n\n" +
-                    "Add a point:  \"Point left\"  /  \"Point right\"  /  \"Point [name]\"\n" +
-                    "Remove a point:  \"Minus/Remove/Undo left\"  /  \"Minus/Remove/Undo right\"\n\n" +
-                    "Left and right refer to screen position. Player names work in any language."
+            "Add a point:\n" +
+                    "  \"Point left\"  /  \"Point right\"  /  \"Point [name]\"\n\n" +
+                    "Remove a point:\n" +
+                    "  \"Minus left\"  /  \"Minus right\"  /  \"Minus [name]\"\n" +
+                    "  \"Remove left\"  /  \"Remove right\"  /  \"Remove [name]\"\n" +
+                    "  \"Undo left\"  /  \"Undo right\"  /  \"Undo [name]\"\n\n" +
+                    "Left and right refer to the screen position of the player."
         ))
 
         container.addView(makeDivider())
@@ -193,9 +153,9 @@ class VoiceSettingsActivity : AppCompatActivity() {
         // --- TIPS ---
         container.addView(makeSectionTitle("TIPS"))
         container.addView(makeSectionBody(
-            "• Speak clearly and at a normal volume.\n" +
-                    "• Short player names work best for voice recognition.\n" +
-                    "• Language models are downloaded once and work offline afterwards."
+            "• Speak clearly and at a normal pace.\n" +
+                    "• Short player names work best.\n" +
+                    "• The mic listens continuously — no need to tap anything."
         ))
 
         container.addView(TextView(this).apply {
@@ -211,23 +171,22 @@ class VoiceSettingsActivity : AppCompatActivity() {
         setContentView(scroll)
     }
 
-    private fun makeLanguageRow(lang: String, locked: Boolean): LinearLayout {
-        val isChecked = languageSelection[lang] == true
-
+    /** English row shown as permanently locked — for future reference only. */
+    private fun makeEnglishRow(): LinearLayout {
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 12 }
+            ).apply { bottomMargin = 12; topMargin = 4 }
         }
 
         val cb = CheckBox(this).apply {
-            this.isChecked = isChecked
-            this.isEnabled = !locked
+            isChecked = true
+            isEnabled = false
             androidx.core.widget.CompoundButtonCompat.setButtonTintList(
                 this,
-                android.content.res.ColorStateList.valueOf(if (locked) dimGray else amber)
+                android.content.res.ColorStateList.valueOf(dimGray)
             )
         }
 
@@ -237,166 +196,15 @@ class VoiceSettingsActivity : AppCompatActivity() {
             setPadding(16, 0, 0, 0)
         }
 
-        val nameLabel = TextView(this).apply {
-            text = getLanguageDisplayName(lang) + if (locked) "  🔒" else ""
+        labelCol.addView(TextView(this).apply {
+            text = "English  🔒"
             textSize = 15f
-            setTextColor(if (locked) dimGray else Color.WHITE)
-        }
+            setTextColor(dimGray)
+        })
 
-        val statusLabel = TextView(this).apply {
-            textSize = 11f
-            setTextColor(gray)
-            visibility = if (locked) View.GONE else View.VISIBLE
-            text = if (isChecked) "Enabled" else ""
-        }
-
-        labelCol.addView(nameLabel)
-        labelCol.addView(statusLabel)
         row.addView(cb)
         row.addView(labelCol)
-
-        checkBoxes[lang] = cb
-        statusLabels[lang] = statusLabel
-
-        if (!locked) {
-            val listener = android.widget.CompoundButton.OnCheckedChangeListener { _, checked ->
-                if (checked) {
-                    cb.setOnCheckedChangeListener(null)
-                    cb.isChecked = false
-                    cb.isEnabled = false
-                    statusLabel.text = "Checking\u2026"
-                    handleLanguageEnable(lang, cb, statusLabel)
-                } else {
-                    languageSelection[lang] = false
-                    saveLanguageSelection(this, languageSelection)
-                    statusLabel.text = ""
-                }
-            }
-            cb.setOnCheckedChangeListener(listener)
-            cb.tag = listener
-        }
-
         return row
-    }
-
-    private fun handleLanguageEnable(lang: String, cb: CheckBox, statusLabel: TextView) {
-        val mlKitCode = TranslateLanguage.fromLanguageTag(lang)
-        if (mlKitCode == null) {
-            // ML Kit doesn't support this language
-            cb.isEnabled = true
-            statusLabel.text = "Not supported"
-            return
-        }
-
-        val options = TranslatorOptions.Builder()
-            .setSourceLanguage(mlKitCode)
-            .setTargetLanguage(TranslateLanguage.ENGLISH)
-            .build()
-        val translator = Translation.getClient(options)
-
-        // Try translating without downloading — succeeds only if models already present
-        translator.translate("test")
-            .addOnSuccessListener {
-                translator.close()
-                // Models already on device — enable immediately, no confirmation needed
-                runOnUiThread {
-                    cb.setOnCheckedChangeListener(null)
-                    cb.isChecked = true
-                    cb.isEnabled = true
-                    @Suppress("UNCHECKED_CAST")
-                    cb.setOnCheckedChangeListener(cb.tag as? android.widget.CompoundButton.OnCheckedChangeListener)
-                    languageSelection[lang] = true
-                    saveLanguageSelection(this, languageSelection)
-                    statusLabel.text = "Enabled"
-                }
-            }
-            .addOnFailureListener {
-                translator.close()
-                // Models not present — ask user to confirm download
-                runOnUiThread {
-                    cb.isEnabled = true
-                    statusLabel.text = ""
-                    showDownloadConfirmation(lang, cb, statusLabel)
-                }
-            }
-    }
-
-    private fun showDownloadConfirmation(lang: String, cb: CheckBox, statusLabel: TextView) {
-        val displayName = getLanguageDisplayName(lang)
-        val view = TextView(this).apply {
-            text = "Enabling $displayName requires downloading the language model (~15 MB).\n\n" +
-                    "This is a one-time download. After that it works fully offline.\n\n" +
-                    "Download now?"
-            textSize = 13f
-            setTextColor(gray)
-            setPadding(48, 24, 48, 8)
-        }
-        AlertDialog.Builder(this, R.style.DarkDialog)
-            .setTitle("Download required")
-            .setView(view)
-            .setPositiveButton("Download") { _, _ ->
-                startModelDownload(lang, cb, statusLabel)
-            }
-            .setNegativeButton("Cancel") { _, _ ->
-                cb.setOnCheckedChangeListener(null)
-                cb.isChecked = false
-                @Suppress("UNCHECKED_CAST")
-                cb.setOnCheckedChangeListener(cb.tag as? android.widget.CompoundButton.OnCheckedChangeListener)
-                statusLabel.text = ""
-            }
-            .setCancelable(false)
-            .show()
-    }
-
-    private fun startModelDownload(lang: String, cb: CheckBox, statusLabel: TextView) {
-        cb.isEnabled = false
-        statusLabel.text = "Downloading…"
-
-        val mlKitCode = TranslateLanguage.fromLanguageTag(lang) ?: return
-        val options = TranslatorOptions.Builder()
-            .setSourceLanguage(mlKitCode)
-            .setTargetLanguage(TranslateLanguage.ENGLISH)
-            .build()
-        val translator = Translation.getClient(options)
-        val conditions = DownloadConditions.Builder().build() // allow any network
-
-        translator.downloadModelIfNeeded(conditions)
-            .addOnSuccessListener {
-                translator.close()
-                runOnUiThread {
-                    cb.setOnCheckedChangeListener(null)
-                    cb.isChecked = true
-                    cb.isEnabled = true
-                    @Suppress("UNCHECKED_CAST")
-                    cb.setOnCheckedChangeListener(cb.tag as? android.widget.CompoundButton.OnCheckedChangeListener)
-                    languageSelection[lang] = true
-                    saveLanguageSelection(this, languageSelection)
-                    statusLabel.text = "Enabled"
-                }
-            }
-            .addOnFailureListener {
-                translator.close()
-                runOnUiThread {
-                    cb.setOnCheckedChangeListener(null)
-                    cb.isChecked = false
-                    cb.isEnabled = true
-                    @Suppress("UNCHECKED_CAST")
-                    cb.setOnCheckedChangeListener(cb.tag as? android.widget.CompoundButton.OnCheckedChangeListener)
-                    statusLabel.text = ""
-                    val view = TextView(this).apply {
-                        text = "Could not download the ${getLanguageDisplayName(lang)} language model.\n\n" +
-                                "Please check your internet connection and try again."
-                        textSize = 13f
-                        setTextColor(gray)
-                        setPadding(48, 24, 48, 8)
-                    }
-                    AlertDialog.Builder(this, R.style.DarkDialog)
-                        .setTitle("Download failed")
-                        .setView(view)
-                        .setPositiveButton("OK", null)
-                        .show()
-                }
-            }
     }
 
     private fun makeSectionTitle(text: String) = TextView(this).apply {
