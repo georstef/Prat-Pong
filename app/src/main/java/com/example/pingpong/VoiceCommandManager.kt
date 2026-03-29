@@ -29,6 +29,7 @@ import com.google.mlkit.nl.translate.TranslatorOptions
  *   "point left"  / "point right"  / "point [name]"  → add point
  *   "minus left"  / "minus right"  / "minus [name]"  → remove point
  *   "remove left" / "remove right" / "remove [name]" → remove point
+ *   "undo left" / "undo right" / "undo [name]" → undo point
  */
 class VoiceCommandManager(
     private val context: Context,
@@ -240,7 +241,7 @@ class VoiceCommandManager(
             return
         }
         val isAdd    = actionWord == "point"
-        val isRemove = actionWord == "minus" || actionWord == "remove"
+        val isRemove = actionWord == "minus" || actionWord == "remove" || actionWord == "undo"
 
         if (!isAdd && !isRemove) {
             if (isActive && !isSpeaking) beginListening()

@@ -174,7 +174,7 @@ class VoiceSettingsActivity : AppCompatActivity() {
         container.addView(makeSectionBody(
             "Speak commands in any enabled language — the app translates them automatically.\n\n" +
                     "Add a point:  \"Point left\"  /  \"Point right\"  /  \"Point [name]\"\n" +
-                    "Remove a point:  \"Minus left\"  /  \"Minus right\"  /  \"Remove left\"  /  \"Remove right\"\n\n" +
+                    "Remove a point:  \"Minus/Remove/Undo left\"  /  \"Minus/Remove/Undo right\"\n\n" +
                     "Left and right refer to screen position. Player names work in any language."
         ))
 
