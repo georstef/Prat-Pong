@@ -129,6 +129,10 @@ class VoiceCommandManager(
             override fun onResults(results: Bundle?) {
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
+                    //mycode
+                    val recognizedText = matches[0]
+                    android.util.Log.d("VoiceDebug", "RAW RECOGNIZED: $recognizedText")
+
                     processRecognizedText(matches[0])
                 } else {
                     if (isActive && !isSpeaking) beginListening()
@@ -183,21 +187,93 @@ class VoiceCommandManager(
         val langId = LanguageIdentification.getClient()
         langId.identifyLanguage(text)
             .addOnSuccessListener { langCode ->
+                //mycode
+                android.util.Log.d("VoiceDebug", "LANG DETECTED: $langCode | TEXT: $text")
+
                 langId.close()
-                if (langCode == "en" || langCode == "und") {
+
+                //mycode
+                when {
+                    langCode == "en" -> {
+                        android.util.Log.d("VoiceDebug", "SKIP TRANSLATION (ENGLISH)")
+
+                        mainHandler.post { handleResult(text) }
+                    }
+                    langCode == "und" -> {
+                        // Unknown language → try all enabled languages sequentially
+                        android.util.Log.d("VoiceDebug", "UNDETECTED - TRY ALL ENABLED LANGUAGES")
+                        tryAllEnabledLanguages(text)
+                    }
+                    else -> {
+                        android.util.Log.d("VoiceDebug", "WILL TRANSLATE FROM: $langCode")
+
+                        translateToEnglish(text, langCode) { translated ->
+                            mainHandler.post { handleResult(translated) }
+                        }
+                    }
+                }
+                /*
+                //mycode
+                //if (langCode == "en" || langCode == "und") {
+                if (langCode == "en") {
+                    //mycode
+                    android.util.Log.d("VoiceDebug", "SKIP TRANSLATION (ENGLISH)")
+
                     // English or undetected — parse directly
                     mainHandler.post { handleResult(text) }
                 } else {
+                    //mycode
+                    android.util.Log.d("VoiceDebug", "WILL TRANSLATE FROM: $langCode")
                     translateToEnglish(text, langCode) { translated ->
+                        //mycode
+                        android.util.Log.d("VoiceDebug", "FINAL TEXT AFTER TRANSLATION: $translated")
+
                         mainHandler.post { handleResult(translated) }
                     }
                 }
+                */
             }
-            .addOnFailureListener {
+            .addOnFailureListener { e ->
+                //mycode
+                android.util.Log.e("VoiceDebug", "LANG DETECTION FAILED", e)
+
                 langId.close()
+                // fallback: try all enabled languages
+                tryAllEnabledLanguages(text)
                 // If detection fails, try parsing as-is
-                mainHandler.post { handleResult(text) }
+                //mainHandler.post { handleResult(text) }
             }
+    }
+
+    // ───── Fallback for undetected languages ─────
+    private fun tryAllEnabledLanguages(text: String) {
+        val langsToTry = enabledLanguages.filter { it != "en" }
+        if (langsToTry.isEmpty()) {
+            // No enabled non-English languages → fallback
+            mainHandler.post { handleResult(text) }
+            return
+        }
+
+        tryTranslateSequential(text, langsToTry, 0)
+    }
+
+    private fun tryTranslateSequential(text: String, langs: List<String>, index: Int) {
+        if (index >= langs.size) {
+            // None worked → fallback
+            mainHandler.post { handleResult(text) }
+            return
+        }
+
+        val lang = langs[index]
+        translateToEnglish(text, lang) { translated ->
+            // Heuristic: if translation changed text, assume this is the correct language
+            if (!translated.equals(text, ignoreCase = true)) {
+                mainHandler.post { handleResult(translated) }
+            } else {
+                // Try next language in the list
+                tryTranslateSequential(text, langs, index + 1)
+            }
+        }
     }
 
     /**
@@ -208,6 +284,9 @@ class VoiceCommandManager(
      */
     private fun translateToEnglish(text: String, sourceLangCode: String, onDone: (String) -> Unit) {
         val mlKitCode = TranslateLanguage.fromLanguageTag(sourceLangCode)
+        //mycode
+        android.util.Log.d("VoiceDebug", "MLKIT CODE: $mlKitCode (from $sourceLangCode)")
+
         if (mlKitCode == null) {
             onDone(text)
             return
@@ -220,10 +299,17 @@ class VoiceCommandManager(
                 .build()
             Translation.getClient(options)
         }
-
+        //mycode
+        android.util.Log.d("VoiceDebug", "TRANSLATING INPUT: $text")
         translator.translate(text)
-            .addOnSuccessListener { translated -> onDone(translated.lowercase().trim()) }
-            .addOnFailureListener { onDone(text) } // fall back to original on error
+            .addOnSuccessListener { translated ->
+                //mycode
+                android.util.Log.d("VoiceDebug", "TRANSLATION SUCCESS: $translated")
+                onDone(translated.lowercase().trim()) }
+            .addOnFailureListener { e ->
+                //mycode
+                android.util.Log.e("VoiceDebug", "TRANSLATION FAILED", e)
+                onDone(text) } // fall back to original on error
     }
 
     // ─────────────────────── COMMAND PARSING ───────────────────────
@@ -233,6 +319,8 @@ class VoiceCommandManager(
      * either directly from the recognizer or after ML Kit translation.
      */
     private fun handleResult(text: String) {
+        //mycode
+        android.util.Log.d("VoiceDebug", "HANDLE RESULT INPUT: $text")
         val input = text.lowercase().trim()
         val words = input.split("\\s+".toRegex())
 
