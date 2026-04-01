@@ -159,7 +159,7 @@ class VoiceSettingsActivity : AppCompatActivity() {
         ))
 
         container.addView(TextView(this).apply {
-            text = "← BACK"
+            text = "GOT IT"
             textSize = 13f
             setTextColor(amber)
             letterSpacing = 0.1f
