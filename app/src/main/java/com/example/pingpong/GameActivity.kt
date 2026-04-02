@@ -255,6 +255,16 @@ class GameActivity : AppCompatActivity() {
                         flashMicRecognized()
                     }
                 }
+            },
+            onModelLoadFailed = {
+                runOnUiThread {
+                    binding.tvMicIndicator.visibility = android.view.View.GONE
+                    AlertDialog.Builder(this, R.style.DarkDialog)
+                        .setTitle("Voice Unavailable")
+                        .setMessage("Failed to load the speech model. Voice commands are disabled.")
+                        .setPositiveButton("OK", null)
+                        .show()
+                }
             }
         )
         voiceCommandManager?.updatePlayerNames(team1Name, team2Name)
