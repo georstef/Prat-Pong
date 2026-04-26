@@ -35,7 +35,7 @@ class GameActivity : AppCompatActivity() {
     private var sets2 = 0
 
     private val history = ArrayDeque<String>()
-    private var setInProgress = true
+    private var setInProgress = false  // set to true once serve is chosen in setServer()
 
     private var servingPlayer = 0
     private var serveStartTotal = 0
@@ -238,6 +238,7 @@ class GameActivity : AppCompatActivity() {
             },
             onMinusLeft = {
                 runOnUiThread {
+                    if (!setInProgress) return@runOnUiThread
                     if (score1 > 0) {
                         score1--
                         updateDisplay()
@@ -248,6 +249,7 @@ class GameActivity : AppCompatActivity() {
             },
             onMinusRight = {
                 runOnUiThread {
+                    if (!setInProgress) return@runOnUiThread
                     if (score2 > 0) {
                         score2--
                         updateDisplay()
@@ -441,6 +443,8 @@ class GameActivity : AppCompatActivity() {
     private fun setServer(player: Int) {
         servingPlayer = player
         serveStartTotal = score1 + score2
+        setInProgress = true
+        if (voiceEnabled) voiceCommandManager?.start()
         updateServeDots()
         updateServer()
     }
@@ -576,6 +580,7 @@ class GameActivity : AppCompatActivity() {
 
         if (team1Wins || team2Wins) {
             setInProgress = false
+            voiceCommandManager?.stopRecognizerOnly()
             if (team1Wins) sets1++ else sets2++
 
             val matchWinner = when {
@@ -594,6 +599,7 @@ class GameActivity : AppCompatActivity() {
                 server?.matchWinner = ""
                 server?.setWinner = setWinner
                 updateDisplay()
+                voiceCommandManager?.speak("Set goes to $setWinner", queued = true)
 
                 val view = buildWinnerView("SET OVER", setWinner, "Sets  $sets1 — $sets2")
                 val d = AlertDialog.Builder(this, R.style.DarkDialog)
@@ -620,6 +626,7 @@ class GameActivity : AppCompatActivity() {
     }
 
     private fun showMatchWinner(winner: String, team1Won: Boolean) {
+        voiceCommandManager?.speak("Match over, $winner wins", queued = true)
         val view = buildWinnerView("MATCH OVER", winner, "Final Sets  $sets1 — $sets2")
         val d = AlertDialog.Builder(this, R.style.DarkDialog)
             .setView(view)

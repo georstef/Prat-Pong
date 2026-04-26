@@ -55,6 +55,8 @@ Enable voice from the Setup screen. Once in a game, the mic listens continuously
 **Add a point:**
 - `"Point left"` / `"Point right"`
 - `"Point [player name]"`
+- `"Add left"` / `"Add right"`
+- `"Add [player name]"`
 **Remove a point:**
 - `"Minus left"` / `"Minus right"` / `"Minus [name]"`
 - `"Remove left"` / `"Remove right"` / `"Remove [name]"`

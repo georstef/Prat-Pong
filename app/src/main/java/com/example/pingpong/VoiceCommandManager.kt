@@ -58,6 +58,7 @@ class VoiceCommandManager(
 
     private var isActive = false
     private var isSpeaking = false
+    private var isListening = false
     private val mainHandler = Handler(Looper.getMainLooper())
 
     var leftPlayerName: String = ""
@@ -125,6 +126,7 @@ class VoiceCommandManager(
     fun stop() {
         isActive = false
         isSpeaking = false
+        isListening = false
         unregisterNetworkCallback()
         stopOnlineRecognizer()
         stopVosk()
@@ -137,6 +139,15 @@ class VoiceCommandManager(
         tts?.shutdown()
         tts = null
         ttsReady = false
+    }
+
+    /** Stops only the speech recognizer, leaving TTS alive so queued announcements still play. */
+    fun stopRecognizerOnly() {
+        isActive = false
+        isListening = false
+        unregisterNetworkCallback()
+        stopOnlineRecognizer()
+        stopVosk()
     }
 
     fun updatePlayerNames(leftName: String, rightName: String) {
@@ -196,20 +207,21 @@ class VoiceCommandManager(
         speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context)
         speechRecognizer?.setRecognitionListener(object : RecognitionListener {
             override fun onResults(results: Bundle?) {
+                isListening = false
                 val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                 if (!matches.isNullOrEmpty()) {
                     Log.d(TAG, "Online result: ${matches[0]}")
                     handleResult(matches[0])
                 }
-                // Stop before restarting to avoid ERROR_CLIENT (5)
-                speechRecognizer?.stopListening()
                 if (isActive && !isSpeaking) mainHandler.postDelayed({ startOnlineRecognizer() }, 100)
             }
             override fun onError(error: Int) {
+                isListening = false
                 when (error) {
                     SpeechRecognizer.ERROR_CLIENT -> {
-                        // Already listening — just let it continue, don't restart
-                        Log.d(TAG, "Recognizer busy, skipping restart")
+                        // Should no longer fire since startOnlineRecognizer() guards
+                        // against double-starts with isListening. Log and ignore.
+                        Log.d(TAG, "Recognizer busy (ERROR_CLIENT) — ignoring")
                     }
                     SpeechRecognizer.ERROR_NO_MATCH,
                     SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> {
@@ -238,6 +250,10 @@ class VoiceCommandManager(
     }
 
     private fun startOnlineRecognizer() {
+        if (isListening) {
+            Log.d(TAG, "startOnlineRecognizer skipped — already listening")
+            return
+        }
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US")
@@ -245,8 +261,10 @@ class VoiceCommandManager(
             putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
         }
         try {
+            isListening = true
             speechRecognizer?.startListening(intent)
         } catch (e: Exception) {
+            isListening = false
             Log.e(TAG, "Failed to start online recognizer: ${e.message}")
         }
     }
@@ -357,18 +375,18 @@ class VoiceCommandManager(
         }
     }
 
-    private fun speak(text: String) {
-        if (ttsReady) tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "cmd_confirmation")
+    fun speak(text: String, queued: Boolean = false) {
+        if (!ttsReady) return
+        val mode = if (queued) TextToSpeech.QUEUE_ADD else TextToSpeech.QUEUE_FLUSH
+        val id   = if (queued) "announcement" else "cmd_confirmation"
+        tts?.speak(text, mode, null, id)
     }
 
     // ─────────────────────── COMMAND PARSING ───────────────────────
 
-    private fun isFuzzyMatch(heard: String, name: String): Boolean {
-        if (heard.contains(name)) return true
-        val threshold = maxOf(1, name.length / 3)
-        return heard.split(" ").any { word -> editDistance(word, name) <= threshold }
-    }
-
+    /**
+     * Levenshtein edit distance between two strings.
+     */
     private fun editDistance(a: String, b: String): Int {
         val m = a.length; val n = b.length
         val dp = Array(m + 1) { IntArray(n + 1) }
@@ -381,36 +399,228 @@ class VoiceCommandManager(
         return dp[m][n]
     }
 
+    /**
+     * Consonant-group digit code for [word].
+     * Letters are mapped to sound groups (Soundex-style), vowels/h/w/y dropped,
+     * and consecutive identical codes collapsed.
+     *
+     * Sound groups:
+     *   1 → b f p v
+     *   2 → c g j k q s x z   (includes ch/sh sounds)
+     *   3 → d t
+     *   4 → l
+     *   5 → m n
+     *   6 → r
+     *
+     * "george" → "262"   "chorrch" → "262"   "tseorts" → "32632"
+     */
+    private fun phoneticDigits(word: String): String {
+        val lower = word.lowercase()
+        val codeMap = mapOf(
+            'b' to '1', 'f' to '1', 'p' to '1', 'v' to '1',
+            'c' to '2', 'g' to '2', 'j' to '2', 'k' to '2',
+            'q' to '2', 's' to '2', 'x' to '2', 'z' to '2',
+            'd' to '3', 't' to '3',
+            'l' to '4',
+            'm' to '5', 'n' to '5',
+            'r' to '6'
+        )
+        val sb = StringBuilder()
+        var last: Char? = null
+        for (ch in lower) {
+            val code = codeMap[ch] ?: continue   // vowels / h w y → dropped
+            if (code != last) { sb.append(code); last = code }
+        }
+        return sb.toString()
+    }
+
+    /**
+     * True if [needle] appears as a subsequence inside [haystack].
+     * e.g. "262" is a subsequence of "32632" → true.
+     */
+    private fun isSubsequence(needle: String, haystack: String): Boolean {
+        var hi = 0
+        for (ch in needle) {
+            while (hi < haystack.length && haystack[hi] != ch) hi++
+            if (hi >= haystack.length) return false
+            hi++
+        }
+        return true
+    }
+
+    /**
+     * Returns a confidence score for how well [heard] matches [target].
+     * Higher = better match. Returns null if no layer matches at all.
+     *
+     * Layer 1 — Exact containment:          score = 100
+     * Layer 2 — Raw edit distance within threshold:
+     *            score = 80 - (editDist * 10)   e.g. ed=0→80, ed=1→70, ed=2→60
+     * Layer 3 — Phonetic edit distance ≤ 1:
+     *            score = 50 - (phonEd * 10)
+     * Layer 4 — Phonetic subsequence:        score = 20
+     *            Only fires when targetDigits.length ≥ 2, to prevent single-digit
+     *            codes (e.g. "ida"→"3") from matching almost everything.
+     *
+     * When two names both match, the one with the higher score wins.
+     */
+    private fun fuzzyScore(heard: String, target: String): Int? {
+        if (heard.isEmpty()) return null
+        if (heard.contains(target)) return 100
+        val targetDigits = phoneticDigits(target)
+        val rawThreshold = minOf(3, maxOf(1, target.length / 3))
+        var bestScore: Int? = null
+        for (word in heard.split("\\s+".toRegex())) {
+            // Layer 2: raw edit distance
+            val ed = editDistance(word, target)
+            if (ed <= rawThreshold) {
+                val s = 80 - ed * 10
+                if (bestScore == null || s > bestScore!!) bestScore = s
+                continue
+            }
+            // Layer 3: phonetic edit distance.
+            // Guard: also require the raw edit distance is within a loose bound
+            // (word length + 2) so that a completely different word that merely
+            // shares one consonant group (e.g. "either"→"36" vs "ida"→"3", ed=1)
+            // does not score here.
+            val wordDigits = phoneticDigits(word)
+            val phonEd = editDistance(wordDigits, targetDigits)
+            if (phonEd <= 1 && ed <= target.length + 1) {
+                val s = 50 - phonEd * 10
+                if (bestScore == null || s > bestScore!!) bestScore = s
+                continue
+            }
+            // Layer 4: phonetic subsequence.
+            // Only for targets with ≥ 2 consonant groups (single-digit codes like
+            // "ida"→"3" would match almost any word containing a D/T sound).
+            if (targetDigits.length >= 2 && word.length >= target.length - 1) {
+                if (isSubsequence(targetDigits, wordDigits) || isSubsequence(wordDigits, targetDigits)) {
+                    if (bestScore == null || 20 > bestScore!!) bestScore = 20
+                }
+            }
+        }
+        return bestScore
+    }
+
+    /**
+     * Tries to find an ADD action keyword anywhere in [words].
+     * Accepts "point"/"points" exactly, plus fuzzy variants with edit
+     * distance ≤ 1 (e.g. "pint", "ponte", "pointed").
+     */
+    private fun findAddAction(words: List<String>): Int {
+        // Accepted add keywords:
+        //   "point" — matched raw (ed≤1) and phonetically (code "153").
+        //             Catches "find","fond","faint","bind","pound" via phonetic.
+        //   "add"   — matched raw only (ed≤1). Its phonetic code is "3" (just the
+        //             D-sound), which collides with "undo"/"take" phonetically, so
+        //             we never use phonetic matching for "add".
+        //             "and" (ed=1 from "add") is explicitly excluded — it's a common
+        //             filler word, not a command.
+        val removeWords = setOf("undo", "unto", "minus", "remove", "delete", "take")
+        val notAddWords = setOf("and", "ant", "any")  // common words too close to "add"
+        val pointDigits = phoneticDigits("point")      // "153"
+        for ((idx, w) in words.withIndex()) {
+            if (w in removeWords || w in notAddWords) continue
+            // "add" — raw match only, no phonetic (code too short/ambiguous)
+            if (editDistance(w, "add") <= 1) return idx
+            // "point" — raw + phonetic
+            if (editDistance(w, "point") <= 1) return idx
+            if (editDistance(phoneticDigits(w), pointDigits) <= 1) return idx
+        }
+        return -1
+    }
+
+    /**
+     * Tries to find a REMOVE action keyword anywhere in [words].
+     * Accepts "minus", "remove", "undo" exactly, plus fuzzy variants
+     * with edit distance ≤ 1 on both raw spelling and phonetic code.
+     */
+    private fun findRemoveAction(words: List<String>): Int {
+        // Raw edit distance only — no phonetic matching for remove words.
+        // "undo"/"minus"/"remove" are short and distinct enough that ed≤1
+        // already covers all realistic mishearings (unto, undu, minos, remov…).
+        // Phonetic matching caused false positives: "at"→"3" is phonetically
+        // close to "undo"→"53" and would incorrectly trigger a remove action.
+        for ((idx, w) in words.withIndex()) {
+            if (editDistance(w, "minus")  <= 1) return idx
+            if (editDistance(w, "remove") <= 1) return idx
+            if (editDistance(w, "undo")   <= 1) return idx
+        }
+        return -1
+    }
+
+    /**
+     * Check whether [rest] matches the side keyword "left" or "right",
+     * using exact match OR fuzzy (edit distance ≤ 1).
+     */
+    private fun matchesSide(rest: String, side: String): Boolean {
+        if (rest == side) return true
+        return rest.split("\\s+".toRegex()).any { editDistance(it, side) <= 1 }
+    }
+
     private fun handleResult(text: String) {
         Log.d(TAG, "HANDLE: $text")
         val input = text.lowercase().trim()
-        val words = input.split("\\s+".toRegex())
+        val words = input.split("\\s+".toRegex()).filter { it.isNotBlank() }
+        if (words.isEmpty()) return
 
-        val actionWord = words.firstOrNull() ?: return
-        val isAdd    = actionWord == "point"
-        val isRemove = actionWord in setOf("minus", "remove", "undo")
-        if (!isAdd && !isRemove) return
+        // Determine action: try ADD first, then REMOVE
+        val addIdx    = findAddAction(words)
+        val removeIdx = findRemoveAction(words)
 
-        val rest = words.drop(1).joinToString(" ").trim()
-
+        val isAdd: Boolean
+        val actionIdx: Int
         when {
-            rest == "left" -> {
-                speak("$actionWord left")
-                if (isAdd) onPointLeft() else onMinusLeft()
+            addIdx >= 0 && removeIdx < 0 -> { isAdd = true;  actionIdx = addIdx }
+            removeIdx >= 0 && addIdx < 0 -> { isAdd = false; actionIdx = removeIdx }
+            addIdx >= 0 && removeIdx >= 0 -> {
+                // Both found — pick whichever comes first
+                isAdd = addIdx <= removeIdx; actionIdx = minOf(addIdx, removeIdx)
             }
-            rest == "right" -> {
-                speak("$actionWord right")
-                if (isAdd) onPointRight() else onMinusRight()
+            else -> {
+                Log.d(TAG, "No action word found in: '$input'")
+                return
             }
-            leftPlayerName.isNotEmpty() && isFuzzyMatch(rest, leftPlayerName) -> {
-                speak("$actionWord $leftPlayerName")
-                if (isAdd) onPointLeft() else onMinusLeft()
-            }
-            rightPlayerName.isNotEmpty() && isFuzzyMatch(rest, rightPlayerName) -> {
-                speak("$actionWord $rightPlayerName")
-                if (isAdd) onPointRight() else onMinusRight()
-            }
-            else -> Log.d(TAG, "No command matched for: '$rest'")
+        }
+
+        // Everything after the action word is the target
+        val rest = words.drop(actionIdx + 1).joinToString(" ").trim()
+        if (rest.isEmpty()) {
+            Log.d(TAG, "Action word found but no target spoken — ignoring")
+            return
+        }
+        val actionLabel = if (isAdd) "point" else "minus"
+
+        // Side keywords ("left" / "right") get a high fixed score so they
+        // always beat a name match when explicitly spoken.
+        val sideLeftScore  = if (matchesSide(rest, "left"))  90 else null
+        val sideRightScore = if (matchesSide(rest, "right")) 90 else null
+
+        // Score both player names. The higher score wins, preventing short names
+        // like "ida" (phonetic code "3") from losing to the other player's name
+        // on an ambiguous transcription.
+        val leftNameScore  = if (leftPlayerName.isNotEmpty())  fuzzyScore(rest, leftPlayerName)  else null
+        val rightNameScore = if (rightPlayerName.isNotEmpty()) fuzzyScore(rest, rightPlayerName) else null
+
+        data class Candidate(val score: Int, val isLeft: Boolean, val label: String, val spokenName: String)
+        val candidates = listOfNotNull(
+            sideLeftScore?.let  { Candidate(it, true,  "LEFT (keyword)",              "left") },
+            sideRightScore?.let { Candidate(it, false, "RIGHT (keyword)",             "right") },
+            leftNameScore?.let  { Candidate(it, true,  "LEFT (name '$leftPlayerName')",  leftPlayerName) },
+            rightNameScore?.let { Candidate(it, false, "RIGHT (name '$rightPlayerName')", rightPlayerName) }
+        )
+
+        val best = candidates.maxByOrNull { it.score }
+        if (best == null) {
+            Log.d(TAG, "No target matched for: '$rest' (full input: '$input')")
+            return
+        }
+
+        Log.d(TAG, "Matched: $actionLabel ${best.label} score=${best.score}")
+        speak("$actionLabel ${best.spokenName}")
+        if (best.isLeft) {
+            if (isAdd) onPointLeft() else onMinusLeft()
+        } else {
+            if (isAdd) onPointRight() else onMinusRight()
         }
     }
 }
