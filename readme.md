@@ -89,7 +89,7 @@ Left and right refer to the screen position of the player. When a command is rec
 - **Architecture:** Four activities (SetupActivity, GameActivity, VoiceSettingsActivity) + VoiceCommandManager
 - **Local web server:** NanoHTTPD on port 8080 (serves the scoreboard as a plain HTML page)
 - **WebSocket server:** Java-WebSocket on port 8081 (pushes live score updates to all connected browsers)
-- **Voice recognition:** Android SpeechRecognizer (always-on, English only)
+- **Voice recognition:** Vosk Offline Engine (always-on, English only, silent)
 - **Text-to-speech:** Android TextToSpeech (confirms recognised commands out loud)
 - **Orientation:** Landscape only
 
