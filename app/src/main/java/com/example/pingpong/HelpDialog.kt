@@ -1,5 +1,6 @@
 package com.example.pingpong
 
+import com.example.pingpong.BuildConfig
 import android.content.Context
 import android.graphics.Color
 import android.text.SpannableStringBuilder
@@ -85,6 +86,21 @@ object HelpDialog {
         sb.append("\n\nThe scoreboard updates instantly as points are scored. This page will show \"Game Starting Soon\" until a match begins.")
         sb.setSpan(ForegroundColorSpan(gray), tvBody2Start, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
 
+        // Version info at the bottom
+        sb.append("\n\n")
+        val versionStart = sb.length
+        sb.append("Version ${BuildConfig.VERSION_NAME}")
+
+// Use amber instead of gray
+        sb.setSpan(ForegroundColorSpan(amber), versionStart, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+// Keep it slightly larger or standard size
+        sb.setSpan(RelativeSizeSpan(1.0f), versionStart, sb.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        sb.setSpan(
+            android.text.style.AlignmentSpan.Standard(android.text.Layout.Alignment.ALIGN_CENTER),
+            versionStart,
+            sb.length,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
         val tv = TextView(context).apply {
             text = sb
             textSize = 13f

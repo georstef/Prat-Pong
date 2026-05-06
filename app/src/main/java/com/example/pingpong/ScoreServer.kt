@@ -21,8 +21,8 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
     var bestOf = 1
     var winScore = 11
     var gameStarted = false
-    var setWinner = ""       // name of set winner, empty if no message
-    var matchWinner = ""     // name of match winner, empty if no message
+    var setWinner = ""
+    var matchWinner = ""
 
     private var wsServer: ScoreWebSocketServer? = null
 
@@ -135,7 +135,27 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
             text-align: center;
             letter-spacing: 0.1em;
         }
-        .center-top { width: 200px; }
+        .center-top {
+            width: 200px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* SWAP BUTTON */
+        #swapBtn {
+            background: none;
+            border: none;
+            color: #FF8F00;
+            font-size: 2vw;
+            cursor: pointer;
+            padding: 8px 16px;
+            opacity: 0.6;
+            transition: opacity 0.2s;
+            line-height: 1;
+        }
+        #swapBtn:hover { opacity: 1; }
+
         .dots-row {
             display: flex;
             justify-content: space-between;
@@ -166,20 +186,15 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
             line-height: 1;
         }
         .center-info {
-    width: 200px;
-    text-align: center;
-    white-space: nowrap;    /* add this */
-}
-.sets {
-    font-size: 3vw;
-    font-weight: 300;
-    margin-bottom: 8px;
-    white-space: nowrap;    /* add this too, for safety */
-}
+            width: 200px;
+            text-align: center;
+            white-space: nowrap;
+        }
         .sets {
             font-size: 3vw;
             font-weight: 300;
             margin-bottom: 8px;
+            white-space: nowrap;
         }
         .format {
             font-size: 1.2vw;
@@ -233,25 +248,26 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
 
     <div id="scoreboard">
         <div class="top-row">
-            <div class="name" id="name1">$team1Name</div>
-            <div class="center-top"></div>
-            <div class="name" id="name2">$team2Name</div>
+            <div class="name" id="nameLeft">$team1Name</div>
+            <div class="center-top">
+                <button id="swapBtn" onclick="toggleSwap()">⇄</button>
+            </div>
+            <div class="name" id="nameRight">$team2Name</div>
         </div>
         <div class="dots-row">
-            <div class="dots" id="dots1"></div>
+            <div class="dots" id="dotsLeft"></div>
             <div class="dots-space"></div>
-            <div class="dots" id="dots2"></div>
+            <div class="dots" id="dotsRight"></div>
         </div>
         <div class="middle-row">
-            <div class="score" id="score1">$score1</div>
+            <div class="score" id="scoreLeft">$score1</div>
             <div class="center-info">
                 <div class="sets" id="sets">$sets1 — $sets2</div>
                 <div class="format" id="format">$formatLabel · $winScore</div>
             </div>
-            <div class="score" id="score2">$score2</div>
+            <div class="score" id="scoreRight">$score2</div>
         </div>
 
-        <!-- Winner overlay shown on top of scoreboard -->
         <div id="winnerOverlay">
             <div class="winner-label" id="winnerLabel">SET WON BY</div>
             <div class="winner-name" id="winnerName"></div>
@@ -261,6 +277,8 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
 
     <script>
         var started = $gameStarted;
+        var swapped = false;
+        var lastData = null;
 
         function dotsHtml(count) {
             if (count === 2) return '● ●';
@@ -268,16 +286,32 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
             return '';
         }
 
-        function updateView(data) {
-            document.getElementById('name1').textContent = data.team1;
-            document.getElementById('name2').textContent = data.team2;
-            document.getElementById('score1').textContent = data.score1;
-            document.getElementById('score2').textContent = data.score2;
-            document.getElementById('sets').textContent = data.sets1 + ' — ' + data.sets2;
+        function toggleSwap() {
+            swapped = !swapped;
+            if (lastData) renderView(lastData);
+        }
+
+        function renderView(data) {
+            // Determine which team goes left/right based on swap state
+            var leftName  = swapped ? data.team2 : data.team1;
+            var rightName = swapped ? data.team1 : data.team2;
+            var leftScore = swapped ? data.score2 : data.score1;
+            var rightScore = swapped ? data.score1 : data.score2;
+            var leftDot   = swapped ? data.dot2   : data.dot1;
+            var rightDot  = swapped ? data.dot1   : data.dot2;
+            var leftSets  = swapped ? data.sets2  : data.sets1;
+            var rightSets = swapped ? data.sets1  : data.sets2;
+
+            document.getElementById('nameLeft').textContent  = leftName;
+            document.getElementById('nameRight').textContent = rightName;
+            document.getElementById('scoreLeft').textContent  = leftScore;
+            document.getElementById('scoreRight').textContent = rightScore;
+            document.getElementById('dotsLeft').textContent  = dotsHtml(leftDot);
+            document.getElementById('dotsRight').textContent = dotsHtml(rightDot);
+            document.getElementById('sets').textContent = leftSets + ' — ' + rightSets;
+
             var fmt = data.bestOf === 3 ? 'B3' : data.bestOf === 5 ? 'B5' : 'B1';
             document.getElementById('format').textContent = fmt + ' · ' + data.winScore;
-            document.getElementById('dots1').textContent = dotsHtml(data.dot1);
-            document.getElementById('dots2').textContent = dotsHtml(data.dot2);
 
             if (data.started) {
                 document.getElementById('splash').style.display = 'none';
@@ -291,16 +325,21 @@ class ScoreServer(private val context: Context) : NanoHTTPD(8080) {
             if (data.matchWinner && data.matchWinner !== '') {
                 document.getElementById('winnerLabel').textContent = 'MATCH WON BY';
                 document.getElementById('winnerName').textContent = data.matchWinner;
-                document.getElementById('winnerSub').textContent = 'SETS ' + data.sets1 + ' — ' + data.sets2;
+                document.getElementById('winnerSub').textContent = 'SETS ' + leftSets + ' — ' + rightSets;
                 overlay.style.display = 'flex';
             } else if (data.setWinner && data.setWinner !== '') {
                 document.getElementById('winnerLabel').textContent = 'SET WON BY';
                 document.getElementById('winnerName').textContent = data.setWinner;
-                document.getElementById('winnerSub').textContent = 'SETS ' + data.sets1 + ' — ' + data.sets2;
+                document.getElementById('winnerSub').textContent = 'SETS ' + leftSets + ' — ' + rightSets;
                 overlay.style.display = 'flex';
             } else {
                 overlay.style.display = 'none';
             }
+        }
+
+        function updateView(data) {
+            lastData = data;
+            renderView(data);
         }
 
         if (started) {

@@ -11,8 +11,8 @@ android {
         applicationId = "com.example.pingpong"
         minSdk = 26
         targetSdk = 34
-        versionCode = 10202
-        versionName = "1.2.2"
+        versionCode = 10203
+        versionName = "1.2.3"
     }
 
     buildTypes {
@@ -32,6 +32,7 @@ android {
 
     buildFeatures {
         viewBinding = true
+        buildConfig = true
     }
 }
 

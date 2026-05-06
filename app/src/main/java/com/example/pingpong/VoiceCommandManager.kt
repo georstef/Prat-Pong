@@ -253,4 +253,17 @@ class VoiceCommandManager(
 
     private fun matchesSide(rest: String, side: String): Boolean =
         rest.split(" ").any { editDistance(it, side) <= 1 }
+
+    fun pause() {
+        voskSpeechService?.setPause(true)
+    }
+
+    fun resume() {
+        if (!isActive) return
+        if (voskSpeechService == null && voskReady) {
+            startVoskService()   // only restarts if it was actually torn down
+        } else {
+            voskSpeechService?.setPause(false)
+        }
+    }
 }

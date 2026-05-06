@@ -6,6 +6,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Color
 import android.os.Bundle
+import android.util.TypedValue
 import android.text.InputType
 import android.view.Gravity
 import android.view.WindowManager
@@ -286,18 +287,18 @@ class GameActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        voiceCommandManager?.stop()
+        voiceCommandManager?.stop()   // full teardown only here
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun onPause() {
         super.onPause()
-        voiceCommandManager?.stop()
+        voiceCommandManager?.pause()
     }
 
     override fun onResume() {
         super.onResume()
-        if (voiceEnabled) voiceCommandManager?.start()
+        voiceCommandManager?.resume()
     }
 
     // ─────────────────────── EXISTING LOGIC ───────────────────────
@@ -316,7 +317,7 @@ class GameActivity : AppCompatActivity() {
 
         val labelView = TextView(this).apply {
             text = label
-            textSize = 11f
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11f)
             setTextColor(Color.parseColor("#AAAAAA"))
             gravity = Gravity.CENTER
             letterSpacing = 0.2f
@@ -328,7 +329,7 @@ class GameActivity : AppCompatActivity() {
 
         val nameView = TextView(this).apply {
             text = name
-            textSize = 28f
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 28f)
             setTextColor(Color.parseColor("#FF8F00"))
             gravity = Gravity.CENTER
             layoutParams = LinearLayout.LayoutParams(
@@ -339,7 +340,7 @@ class GameActivity : AppCompatActivity() {
 
         val subView = TextView(this).apply {
             text = sub
-            textSize = 13f
+            setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13f)
             setTextColor(Color.parseColor("#666666"))
             gravity = Gravity.CENTER
             letterSpacing = 0.1f
@@ -408,7 +409,7 @@ class GameActivity : AppCompatActivity() {
         fun makeNameButton(name: String, player: Int): TextView {
             return TextView(this).apply {
                 text = name
-                textSize = 16f
+                setTextSize(TypedValue.COMPLEX_UNIT_DIP, 16f)
                 setTextColor(0xFFFFFFFF.toInt())
                 gravity = Gravity.CENTER
                 setPadding(24, 16, 24, 16)
@@ -444,7 +445,8 @@ class GameActivity : AppCompatActivity() {
         servingPlayer = player
         serveStartTotal = score1 + score2
         setInProgress = true
-        if (voiceEnabled) voiceCommandManager?.start()
+        // Remove: if (voiceEnabled) voiceCommandManager?.start()
+        // Voice is already running; setInProgress = true is the gate for commands
         updateServeDots()
         updateServer()
     }
