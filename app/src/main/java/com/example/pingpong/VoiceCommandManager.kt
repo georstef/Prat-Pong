@@ -23,7 +23,8 @@ class VoiceCommandManager(
     private val onPointRight: () -> Unit,
     private val onMinusLeft: () -> Unit,
     private val onMinusRight: () -> Unit,
-    private val onModelLoadFailed: (() -> Unit)? = null
+    private val onModelLoadFailed: (() -> Unit)? = null,
+    var onHeard: ((String) -> Unit)? = null   // closed-captions callback
 ) {
 
     private var voskModel: Model? = null
@@ -81,7 +82,8 @@ class VoiceCommandManager(
     }
 
     fun stopRecognizerOnly() {
-        isActive = false
+        // Do NOT clear isActive — resume() must be able to restart the recognizer
+        // for the next set. We only tear down the service object.
         stopVosk()
     }
 
@@ -143,6 +145,10 @@ class VoiceCommandManager(
     private fun initTts() {
         tts = TextToSpeech(context) { status ->
             if (status == TextToSpeech.SUCCESS) {
+                val result = tts?.setLanguage(java.util.Locale.ENGLISH)
+                if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    Log.w(TAG, "TTS English not supported, falling back to device default")
+                }
                 ttsReady = true
                 tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
                     override fun onStart(id: String?) {
@@ -165,8 +171,63 @@ class VoiceCommandManager(
         tts?.speak(text, mode, null, "v_cmd")
     }
 
+    /** Speaks even if TTS isn't ready yet — polls until ready (max ~3 s). */
+    fun speakWhenReady(text: String) {
+        if (ttsReady) {
+            tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "v_cmd")
+            return
+        }
+        val start = System.currentTimeMillis()
+        mainHandler.post(object : Runnable {
+            override fun run() {
+                when {
+                    ttsReady -> tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "v_cmd")
+                    System.currentTimeMillis() - start < 3000 -> mainHandler.postDelayed(this, 100)
+                    // TTS never became ready — give up silently
+                }
+            }
+        })
+    }
+
+    /**
+     * Speaks [text] then fully tears down the manager once the utterance finishes.
+     * Safe to call from UI thread.
+     */
+    fun stopAfterSpeaking(text: String, onDone: () -> Unit) {
+        fun doStop() {
+            isActive = false
+            isSpeaking = false
+            stopVosk()
+            voskRecognizer?.close()
+            voskModel?.close()
+            tts?.stop()
+            tts?.shutdown()
+            mainHandler.post { onDone() }
+        }
+
+        if (!ttsReady) { doStop(); return }
+
+        tts?.setLanguage(java.util.Locale.ENGLISH)
+        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(id: String?) {
+                isSpeaking = true
+                mainHandler.post { voskSpeechService?.setPause(true) }
+            }
+            override fun onDone(id: String?) {
+                isSpeaking = false
+                doStop()
+            }
+            override fun onError(id: String?) {
+                isSpeaking = false
+                doStop()
+            }
+        })
+        tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "v_stop")
+    }
+
     private fun handleResult(text: String) {
         val input = text.lowercase().trim()
+        mainHandler.post { onHeard?.invoke(input) }   // closed-captions hook
         val words = input.split("\\s+".toRegex()).filter { it.isNotBlank() }
         if (words.isEmpty()) return
 

@@ -46,6 +46,7 @@ class GameActivity : AppCompatActivity() {
     // Voice
     private var voiceCommandManager: VoiceCommandManager? = null
     private var voiceEnabled = false
+    private var closedCaptionsEnabled = false
     private val MIC_PERMISSION_REQUEST = 101
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -167,13 +168,22 @@ class GameActivity : AppCompatActivity() {
         }
 
         binding.btnInfo.setOnClickListener { showInfoDialog() }
+
+        // Mic icon: tap = toggle voice on/off, long-press = toggle closed captions
+        binding.tvMicIndicator.setOnClickListener { toggleVoiceFromUi() }
+        binding.tvMicIndicator.setOnLongClickListener {
+            toggleClosedCaptions()
+            true
+        }
     }
 
     // ───────────────────────── VOICE ─────────────────────────
 
     private fun requestMicPermissionAndSetupVoice() {
+        // Mic icon is always visible — it doubles as the toggle button
+        binding.tvMicIndicator.visibility = android.view.View.VISIBLE
         if (!voiceEnabled) {
-            binding.tvMicIndicator.visibility = android.view.View.GONE
+            setMicIdle()
             return
         }
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
@@ -198,19 +208,19 @@ class GameActivity : AppCompatActivity() {
             if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 setupVoiceCommands()
             } else {
-                // Permission denied — hide mic icon and disable voice silently
-                binding.tvMicIndicator.visibility = android.view.View.GONE
+                // Permission denied — disable voice but keep icon visible for future toggle
+                voiceEnabled = false
+                setMicIdle()
             }
         }
     }
 
     private fun setupVoiceCommands() {
         if (!voiceEnabled) {
-            binding.tvMicIndicator.visibility = android.view.View.GONE
+            setMicIdle()
             return
         }
 
-        binding.tvMicIndicator.visibility = android.view.View.VISIBLE
         setMicIdle()
 
         voiceCommandManager = VoiceCommandManager(
@@ -261,7 +271,7 @@ class GameActivity : AppCompatActivity() {
             },
             onModelLoadFailed = {
                 runOnUiThread {
-                    binding.tvMicIndicator.visibility = android.view.View.GONE
+                    setMicIdle()
                     AlertDialog.Builder(this, R.style.DarkDialog)
                         .setTitle("Voice Unavailable")
                         .setMessage("Failed to load the speech model. Voice commands are disabled.")
@@ -270,19 +280,112 @@ class GameActivity : AppCompatActivity() {
                 }
             }
         )
+        voiceCommandManager?.onHeard = { text ->
+            if (closedCaptionsEnabled) showCaptionToast(text)
+        }
         voiceCommandManager?.updatePlayerNames(team1Name, team2Name)
         voiceCommandManager?.start()
     }
 
     private fun setMicIdle() {
-        binding.tvMicIndicator.setTextColor(Color.parseColor("#FF8F00"))
-        binding.tvMicIndicator.alpha = 0.4f
+        if (voiceEnabled) {
+            binding.tvMicIndicator.setImageResource(R.drawable.baseline_mic_24)
+            binding.tvMicIndicator.setColorFilter(Color.parseColor("#FF8F00"))
+            binding.tvMicIndicator.alpha = 0.6f
+        } else {
+            binding.tvMicIndicator.setImageResource(R.drawable.baseline_mic_off_24)
+            binding.tvMicIndicator.setColorFilter(Color.parseColor("#555555"))
+            binding.tvMicIndicator.alpha = 0.8f
+        }
     }
 
     private fun flashMicRecognized() {
+        binding.tvMicIndicator.setImageResource(R.drawable.baseline_mic_24)
+        binding.tvMicIndicator.setColorFilter(Color.parseColor("#FF8F00"))
         binding.tvMicIndicator.alpha = 1.0f
-        binding.tvMicIndicator.setTextColor(Color.parseColor("#FF8F00"))
         binding.tvMicIndicator.postDelayed({ setMicIdle() }, 600)
+    }
+
+    private fun toggleVoiceFromUi() {
+        voiceEnabled = !voiceEnabled
+
+        // Persist preference
+        val prefs = getSharedPreferences("pingpong_prefs", Context.MODE_PRIVATE)
+        prefs.edit().putBoolean(VoiceSettingsActivity.KEY_VOICE_ENABLED, voiceEnabled).apply()
+
+        if (voiceEnabled) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
+                == PackageManager.PERMISSION_GRANTED) {
+                setupVoiceCommands()
+                // speakWhenReady polls until TTS is initialised before speaking
+                voiceCommandManager?.speakWhenReady("Voice Commands Enabled")
+            } else {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.RECORD_AUDIO),
+                    MIC_PERMISSION_REQUEST
+                )
+            }
+        } else {
+            // stopAfterSpeaking speaks the phrase fully, then tears everything down
+            closedCaptionsEnabled = false
+            voiceCommandManager?.stopAfterSpeaking("Voice Commands Disabled") {
+                voiceCommandManager = null
+                setMicIdle()
+            }
+        }
+    }
+
+    private fun toggleClosedCaptions() {
+        if (!voiceEnabled || voiceCommandManager == null) return
+        closedCaptionsEnabled = !closedCaptionsEnabled
+        if (closedCaptionsEnabled) {
+            voiceCommandManager?.speak("Voice captions on")
+        } else {
+            voiceCommandManager?.speak("Voice captions off")
+        }
+    }
+
+    private var captionRunnable: Runnable? = null
+
+    private fun showCaptionToast(text: String) {
+        var tv = findViewById<android.widget.TextView>(android.R.id.text1 + 9999)
+        if (tv == null) {
+            tv = android.widget.TextView(this).apply {
+                id = android.R.id.text1 + 9999
+                setTextColor(Color.WHITE)
+                setBackgroundColor(Color.parseColor("#DD000000"))
+                textSize = 28f
+                gravity = android.view.Gravity.CENTER
+                setPadding(48, 36, 48, 36)
+                elevation = 20f
+                val lp = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(
+                    androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.WRAP_CONTENT,
+                    androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.WRAP_CONTENT
+                ).apply {
+                    startToStart = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                    endToEnd = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                    topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                    bottomToBottom = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                    horizontalBias = 0.5f
+                    verticalBias = 0.65f
+                    matchConstraintMaxWidth = (resources.displayMetrics.widthPixels * 0.85f).toInt()
+                }
+                layoutParams = lp
+            }
+            (binding.root as androidx.constraintlayout.widget.ConstraintLayout).addView(tv)
+        }
+        tv.text = "\" $text \""
+        tv.visibility = android.view.View.VISIBLE
+        tv.alpha = 1f
+
+        captionRunnable?.let { tv.removeCallbacks(it) }
+        captionRunnable = Runnable {
+            tv.animate().alpha(0f).setDuration(500).withEndAction {
+                tv.visibility = android.view.View.GONE
+            }.start()
+        }
+        tv.postDelayed(captionRunnable!!, 3500)
     }
 
     override fun onDestroy() {
@@ -610,6 +713,7 @@ class GameActivity : AppCompatActivity() {
                         server?.setWinner = ""
                         resetSet()
                         setInProgress = true
+                        voiceCommandManager?.resume()
                         askWhoServes()
                     }
                     .setNegativeButton("Restart Match") { _, _ ->
@@ -618,6 +722,7 @@ class GameActivity : AppCompatActivity() {
                         server?.matchWinner = ""
                         resetMatch()
                         setInProgress = true
+                        voiceCommandManager?.resume()
                         askWhoServes()
                     }
                     .setCancelable(false)
@@ -637,6 +742,7 @@ class GameActivity : AppCompatActivity() {
                 server?.setWinner = ""
                 resetMatch()
                 setInProgress = true
+                voiceCommandManager?.resume()
                 askWhoServes()
             }
             .setNegativeButton("Setup") { _, _ ->
